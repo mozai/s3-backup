@@ -1,0 +1,124 @@
+#!/bin/bash
+# each Sunday, backup to S3URL/backups_weekly/YYYY-MM-DD
+# each other day, use tar's --listed-incremental feature to upload diff
+#   to S3URL/backups_daily/YYYY-MM-DD
+
+# -- config --
+# backup destination
+S3URL="s3://S3BUCKET/$(hostname -s)"
+
+# extra options for aws-cli
+AWS_OPTS=( "--cli-connect-timeout=10" )
+
+# where snapshot archives (.snar) are stored locally
+SNARDIR="$(dirname "$(readlink -f -- "$0")")/snarfiles"
+
+# backup sources; each source will be its own tarball at the destination
+# also add each real (not a link) subfolder of /var/www
+TAR_INDIRS=(
+	"/etc"
+	"/root"
+	"/usr/local"
+	/home/*
+)
+for i in /var/www/*; do [ -L "$i" ] || TAR_INDIRS+=("$i"); done
+
+# optional tar options
+# exclude-tag: if a directory contains this file, prune it out
+TAR_OPTS=(
+	"--exclude-tag=.dont_backup"
+	"--exclude-tag=.skip_backup"
+	"--exclude" ".cache"
+	"--exclude" ".cachedir"
+	"--exclude" "tmp"
+	"--exclude" "*~"
+)
+
+
+# -- init --
+umask 077
+PATH="/usr/local/sbin:/usr/local/bin:$PATH"
+mkdir -p "$SNARDIR"
+
+whisper(){ [[ -t 0 ]] && echo "$*"; }  # be quiet in cronjobs
+# whisper(){ echo "$*"; }  # make noise in cronjobs
+die(){ echo >&2 "$1"; exit "${2:-1}"; }
+
+# verify we have the programs we need
+_verify_needs(){
+	local awsver retval
+	retval=0
+	for i in aws gzip head sort; do
+		if ! command -v "$i" >/dev/null; then
+			echo >&2 "EROR need program: ${i}"
+			retval=1
+		fi
+	done
+	[[ $retval == 0 ]] || return $retval
+	awsver=$(aws --version)  # aws-cli/2.9.3 Python/3.9.11 Linux/5.15.91-1
+	awsver=${awsver%% *} ; awsver=${awsver#*/} ;
+	if [[ "$( echo -e "$awsver\n1.10" |sort -rV |head -1 )" != "$awsver" ]]; then
+		echo >&2 "EROR need aws --version >=1.10; saw $awsver"
+		retval=1
+	fi
+	return $retval
+}
+
+_get_snapshot_date() {
+	# get day-of-week, Sunday == 0
+	wday=$(( $(printf '%(%u)T') % 7 ))
+	# snapshot day is last sunday unless today is sunday
+	printf '%(%F)T' $(( $(printf '%(%s)T') - ( wday * 86400 ) ))
+}
+
+declare -a UPLOADCMD
+AWS_OPTS=("--no-paginate" "--output=text" "--color=off" )
+[ -t 0 ] || AWS_OPTS+=("--quiet")
+UPLOADCMD=("aws" "${AWS_OPTS[@]}" "s3" "cp")
+
+# non-optional options; don't tempt the user to change these in config
+TAR_OPTS+=(
+	"--absolute-names"
+	"--exclude-backups"
+	"--exclude-caches-all"
+	"--warning=no-file-changed"
+	"--warning=no-file-removed"
+	"--one-file-system"
+	"--sparse"
+	#"-z"  # no use "-I" instead
+	# setting "--no-name" means identical contents == identical md5sums
+	# "--rsyncable" would be great if we used rsync instead of 's3cmd sync'
+	"-I" "gzip --no-name"
+	# -g or --listed-incremental is set later
+)
+[ -t 0 ] && TAR_OPTS+=("--totals")
+
+snardate="$(_get_snapshot_date)"  # today or last sunday yyyy-mm-dd
+today=$(printf '%(%F)T')  # yyyy-mm-dd
+for indir in "${TAR_INDIRS[@]}"; do
+	if [ "${indir:0:1}" != "/" ]; then
+		echo >&2 "WARN $indir ; skipping because not an absolute path."
+		continue
+	fi
+	tarname="${indir//\//_}"
+	snarfile="$SNARDIR/$tarname.$snardate.snar"
+	if [[ "$snardate" == "$today" ]] || [[ ! -e "$snarfile" ]]; then
+		# force a full backup
+		rm -f "$SNARDIR/$tarname".*.snar
+		s3path="$S3URL/backups_weekly/$today"
+		mday=$(printf '%(%d)T')
+		mday=${mday#0}  # because 08 and 09 are errors in the next line
+		if [[ $mday -lt 8 ]]; then
+			s3path="$S3URL/backups_monthly/$today"
+		fi
+	else
+		# this will be an incremental backup
+		s3path="$S3URL/backups_daily/$today"
+		tarname="$tarname.inc"
+	fi
+	whisper "Backing up to $s3path/$tarname.tgz... ";
+	# echo "/bin/tar -c -f - ${TAR_OPTS[*]} -g $snarfile -C / $indir |${UPLOADCMD[*]} - $s3path/$tarname.$today.tgz"
+	/bin/tar -c -f - "${TAR_OPTS[@]}" -g "$snarfile" -C / "$indir" \
+		|"${UPLOADCMD[@]}" - "$s3path/$tarname.$today.tgz"
+done
+

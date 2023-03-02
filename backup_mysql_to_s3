@@ -1,0 +1,88 @@
+#!/bin/bash
+# packs up mysql databases and directories and push them up to S3
+# needs aws-cli, version 1.10 at least (uses GNU sort to check)
+# needs mysql, mysqldump, obviously
+
+# TODO: how to make incremental backups of (mysql) databases?
+
+# first Sunday of the month, use S3URL/backups_monthaly/YYYY-MM-DD
+# every other Sunday use .../backups_weekly/YYYY-MM-DD
+# else use .../backups_daily/YYYY-MM-DD
+#   TODO: document how to write an S3 lifecycle policy to automatically
+#   expire files in these pseudo-foldersk
+
+# -- config --
+# backup destination
+S3URL="s3://S3BUCKET/$(hostname -s)"
+# more options to pass to the aws-cli command
+AWS_OPTS=("--cli-connect-timeout=10")
+
+# -- init --
+umask 077
+PATH="/usr/local/sbin:/usr/local/bin:$PATH"
+
+whisper(){ [ -t 0 ] && echo "$*"; }  # be quiet in cronjobs
+# whisper(){ echo "$*"; }  # make noise in cronjobs
+die(){ echo >&2 "$1"; exit "${2:-1}"; }
+
+# verify we have the programs we need
+_verify_needs(){
+	local awsver retval
+	retval=0
+	for i in aws gzip head mysql mysqldump sort; do
+		if ! command -v "$i" >/dev/null; then
+			echo >&2 "EROR need program: ${i}"
+			retval=1
+		fi
+	done
+	[[ $retval == 0 ]] || return $retval
+	awsver=$(aws --version)  # aws-cli/2.9.3 Python/3.9.11 Linux/5.15.91-1
+	awsver=${awsver%% *} ; awsver=${awsver#*/} ;
+	if [ "$( echo -e "$awsver\n1.10" |sort -rV |head -1 )" != "$awsver" ]; then
+		echo >&2 "EROR need aws --version >=1.10; saw $awsver"
+		retval=1
+	fi
+	return $retval
+}
+
+# which subdir are we uploading these to?
+#  AWS S3 expiry policies use the first umpteen characters of an object's name
+#  i.e. "anything named s3://bucket/backups_daily/* expire after 8 days"
+_build_s3_prefix() {
+	local path today wday mday
+	path=""	
+	today=$(printf '%(%F)T')
+	wday=$(( $(printf '%(%u)T') % 7 ))
+	mday=$(printf '%(%d)T')
+	if [[ "$wday" -eq 0 ]] && [[ "$mday" -lt 8 ]]; then
+		path="backups_monthly/$today"
+	elif [[ "$wday" == "0" ]]; then
+		path="backups_weekly/$today"
+	else
+		path="backups_daily/$today"
+	fi
+	echo "$path"
+}
+
+
+# -- main() --
+_verify_needs || exit 1
+objprefix="$S3URL/$(_build_s3_prefix)"
+AWS_OPTS+=("--no-paginate" "--output=text" "--color=off")
+[ -t 0 ] || AWS_OPTS+=("--quiet")
+UPLOADCMD=("aws" "${AWS_OPTS[@]}" "s3" "cp")
+
+mapfile -t dbnames < <(mysql -BN -e 'show databases;')
+for dbname in "${dbnames[@]}"; do
+	skip=""
+	case $dbname in
+		information_schema|mysql|performance_schema|sys ) 
+			skip=1
+		;;
+	esac
+	[[ -n "$skip" ]] && continue;
+	whisper "Sending $dbname to $objprefix/$dbname.sql.gz"
+	mysqldump --skip-comments "$dbname" \
+		|gzip -ncf - \
+		|"${UPLOADCMD[@]}" - "$objprefix/$dbname.sql.gz"
+done
