@@ -106,21 +106,17 @@ Automation
 Throw this into /etc/cron.d/local
 ```
 # offsite backups
-12 6 * * *      root    /root/s3-backup/backup_cronjob.sh
+12 6 * * *      root    /opt/s3-backup/backup_cronjob.sh
 ```
 
 TODO
 ====
-* move the config out to a config file so I don't have to keep stripping/
-  injecting my personal info to this git repo. =P
-
 * Easy tool to just point at a dir like /home/radio and upload just
   that one thing right now.  Needed for the huge and unchanging things
   like /home/radio/sessionrecordings
-
-* Is it worth doing level-2 incrementals with tar?
-
 * investigate using `aws s3api put-object` instead of `aws s3 cp`, so
   we can use tagging for expiry instead of object-name prefixes
-
+* Sense when the full backup is missing, even if there are (incorrect)
+  snarfiles locally.
+* Is it worth doing level-2 incrementals with tar?
 * incremental backups of mysql databases, how if possible?
