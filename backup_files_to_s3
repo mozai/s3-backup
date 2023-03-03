@@ -5,20 +5,29 @@
 
 # -- init --
 umask 077
-AWS_OPTS=("--cli-connect-timeout=10")
+whisper(){ [[ -t 0 ]] && echo "$*"; }  # be quiet in cronjobs
+die(){ echo >&2 "$1"; exit "${2:-1}"; }
+# config defaults
+AWS_OPTS=( "--cli-connect-timeout=10" )
+TAR_INDIRS=( /etc /root /home/* )
+TAR_OPTS=( "--exclude-tag=.dont_backup" "--exclude-tag=.skip_backup"
+	"--exclude=.cache" "--exclude=.cachedir" "--exclude=tmp"
+	"--exclude=\*.bak" "--exclude=\*~" )
+# load config
 workdir="$(dirname "$(readlink -f -- "$0")")"
 for f in "$HOME/.config/s3-backup.cfg" "$HOME/.s3-backup.cfg" "./s3-backup.cfg" "$workdir/s3-backup.cfg" ; do
 	# shellcheck disable=SC1090
 	[ -e "$f" ] && source "$f" && break;
 done
-whisper(){ [[ -t 0 ]] && echo "$*"; }  # be quiet in cronjobs
-# whisper(){ echo "$*"; }  # make noise in cronjobs
-die(){ echo >&2 "$1"; exit "${2:-1}"; }
 
 # verify we have the programs we need
 _verify_needs(){
 	local awsver retval
 	retval=0
+	if [ -z "$S3BUCKET" ]; then
+		echo >&2 "EROR variable S3BUCKET is empty; aborting."
+		retval=1
+	fi
 	for i in aws gzip head sort; do
 		if ! command -v "$i" >/dev/null; then
 			echo >&2 "EROR need program: ${i}"
@@ -43,7 +52,7 @@ _get_snapshot_date() {
 }
 
 declare -a UPLOADCMD
-AWS_OPTS=("--no-paginate" "--output=text" "--color=off" )
+AWS_OPTS=("--output=text" "--color=off" )
 [ -t 0 ] || AWS_OPTS+=("--quiet")
 UPLOADCMD=("aws" "${AWS_OPTS[@]}" "s3" "cp")
 
@@ -64,14 +73,13 @@ TAR_OPTS+=(
 )
 [ -t 0 ] && TAR_OPTS+=("--totals")
 
+# -- main --
+_verify_needs || die "pre-flight check failed";
 [ -z "$SNARDIR" ] && SNARDIR="$HOME/.cache/s3-backup"
 mkdir -p "$SNARDIR"
 snardate="$(_get_snapshot_date)"  # today or last sunday yyyy-mm-dd
 today=$(printf '%(%F)T')  # yyyy-mm-dd
 S3URL="s3://$S3BUCKET/$(hostname -s)/"
-if [ -z "${TAR_INDIRS[*]}" ]; then
-	TAR_INDIRS=( /etc /root /home/* )
-fi
 for indir in "${TAR_INDIRS[@]}"; do
 	if [ "${indir:0:1}" != "/" ]; then
 		echo >&2 "WARN $indir ; skipping because not an absolute path."

@@ -3,14 +3,16 @@
 
 # -- init --
 umask 077
+whisper(){ [ -t 0 ] && echo "$*"; }  # be quiet in cronjobs
+die(){ echo >&2 "$1"; exit "${2:-1}"; }
+# config defaults
 AWS_OPTS=("--cli-connect-timeout=10")
-for f in "$HOME/.config/s3-backup.cfg" "$HOME/.s3-backup.cfg" "./s3-backup.cfg" "$(dirname "$(readlink -f -- "$0")")/s3-backup.cfg" ; do
+# load config
+workdir=$(dirname "$(readlink -f -- "$0")")
+for f in "$HOME/.config/s3-backup.cfg" "$HOME/.s3-backup.cfg" "./s3-backup.cfg" "$workdir/s3-backup.cfg" ; do
 	# shellcheck disable=SC1090
 	[ -e "$f" ] && source "$f" && break;
 done
-
-whisper(){ [ -t 0 ] && echo "$*"; }  # be quiet in cronjobs
-die(){ echo >&2 "$1"; exit "${2:-1}"; }
 
 # verify we have the programs we need
 _verify_needs(){
@@ -59,9 +61,9 @@ _build_s3_prefix() {
 
 
 # -- main() --
-_verify_needs || exit 1
+_verify_needs || die "pre-flight check failed"
 objprefix="s3://${S3BUCKET}/$(_build_s3_prefix)"
-AWS_OPTS+=("--no-paginate" "--output=text" "--color=off")
+AWS_OPTS+=("--output=text" "--color=off")
 [ -t 0 ] || AWS_OPTS+=("--quiet")
 UPLOADCMD=("aws" "${AWS_OPTS[@]}" "s3" "cp")
 
