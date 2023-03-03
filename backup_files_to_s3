@@ -3,43 +3,14 @@
 # each other day, use tar's --listed-incremental feature to upload diff
 #   to S3URL/backups_daily/YYYY-MM-DD
 
-# -- config --
-# backup destination
-S3URL="s3://S3BUCKET/$(hostname -s)"
-
-# extra options for aws-cli
-AWS_OPTS=( "--cli-connect-timeout=10" )
-
-# where snapshot archives (.snar) are stored locally
-SNARDIR="$(dirname "$(readlink -f -- "$0")")/snarfiles"
-
-# backup sources; each source will be its own tarball at the destination
-# also add each real (not a link) subfolder of /var/www
-TAR_INDIRS=(
-	"/etc"
-	"/root"
-	"/usr/local"
-	/home/*
-)
-for i in /var/www/*; do [ -L "$i" ] || TAR_INDIRS+=("$i"); done
-
-# optional tar options
-# exclude-tag: if a directory contains this file, prune it out
-TAR_OPTS=(
-	"--exclude-tag=.dont_backup"
-	"--exclude-tag=.skip_backup"
-	"--exclude" ".cache"
-	"--exclude" ".cachedir"
-	"--exclude" "tmp"
-	"--exclude" "*~"
-)
-
-
 # -- init --
 umask 077
-PATH="/usr/local/sbin:/usr/local/bin:$PATH"
-mkdir -p "$SNARDIR"
-
+AWS_OPTS=("--cli-connect-timeout=10")
+workdir="$(dirname "$(readlink -f -- "$0")")"
+for f in "$HOME/.config/s3-backup.cfg" "$HOME/.s3-backup.cfg" "./s3-backup.cfg" "$workdir/s3-backup.cfg" ; do
+	# shellcheck disable=SC1090
+	[ -e "$f" ] && source "$f" && break;
+done
 whisper(){ [[ -t 0 ]] && echo "$*"; }  # be quiet in cronjobs
 # whisper(){ echo "$*"; }  # make noise in cronjobs
 die(){ echo >&2 "$1"; exit "${2:-1}"; }
@@ -93,11 +64,21 @@ TAR_OPTS+=(
 )
 [ -t 0 ] && TAR_OPTS+=("--totals")
 
+[ -z "$SNARDIR" ] && SNARDIR="$HOME/.cache/s3-backup"
+mkdir -p "$SNARDIR"
 snardate="$(_get_snapshot_date)"  # today or last sunday yyyy-mm-dd
 today=$(printf '%(%F)T')  # yyyy-mm-dd
+S3URL="s3://$S3BUCKET/$(hostname -s)/"
+if [ -z "${TAR_INDIRS[*]}" ]; then
+	TAR_INDIRS=( /etc /root /home/* )
+fi
 for indir in "${TAR_INDIRS[@]}"; do
 	if [ "${indir:0:1}" != "/" ]; then
 		echo >&2 "WARN $indir ; skipping because not an absolute path."
+		continue
+	fi
+	if [[ ! -f "$indir" ]] && [[ ! -d "$indir" ]]; then
+		echo >&2 "WARN $indir not a directory nor file; skipping."
 		continue
 	fi
 	tarname="${indir//\//_}"

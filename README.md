@@ -51,15 +51,17 @@ IAM policy should be named like 'HOSTONE\_write\_S3BUCKET'
 ```
 
 ```
-mkdir /root/.aws ; chmod 700 /root/.aws ; 
+mkdir /root/.aws ; chmod 700 /root/.aws ;
 echo -e "[default]\nregion = ca-central-1" >/root/.aws/config
-echo -e "[default]\naws_access_key_id = AKarglebargle\n" >/root/.aws/credentials
+echo -e "[default]\naws_access_key_id = AKarglebargle\n" \
+  >/root/.aws/credentials
 echo "aws_secret_access_key = 8kkXhoobastank" >>/root/.aws/credentials
 history -d -2  # erase the log of your password
 aws sts get-caller identity  # make sure it works
 ```
 
-Add some rules to the bucket's lifecycle config, like below.  Unfortunately,
+Add some rules to the bucket's lifecycle config, like below.
+Unfortunately,
 the rules are bucket-wide so you have to overwrite all the rules when you
 just want to change one of them.
 ```json
@@ -92,8 +94,11 @@ just want to change one of them.
 }
 ```
 Then
-`aws --profile S3admin s3api put-bucket-lifecycle-configuration --bucket $S3BUCKET --lifecycle-configuration file://./policy.json`
+`aws --profile S3admin s3api put-bucket-lifecycle-configuration \
+  --bucket $S3BUCKET --lifecycle-configuration file://./policy.json`
 
+Copy s3-backup.example.cfg to s3-backup.cfg and edit it to match
+your personal settings.
 
 
 Automation
@@ -106,9 +111,16 @@ Throw this into /etc/cron.d/local
 
 TODO
 ====
+* move the config out to a config file so I don't have to keep stripping/
+  injecting my personal info to this git repo. =P
+
 * Easy tool to just point at a dir like /home/radio and upload just
   that one thing right now.  Needed for the huge and unchanging things
   like /home/radio/sessionrecordings
 
 * Is it worth doing level-2 incrementals with tar?
 
+* investigate using `aws s3api put-object` instead of `aws s3 cp`, so
+  we can use tagging for expiry instead of object-name prefixes
+
+* incremental backups of mysql databases, how if possible?

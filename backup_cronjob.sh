@@ -1,7 +1,8 @@
 #!/bin/bash
 # because the backup is multiple steps
 
-cd $(dirname "$(readlink -f -- "$0")") || exit 1;
+workdir=$(dirname "$(readlink -f -- "$0")")
+cd "$workdir" || exit 1;
 
 # clean out older backups; keep daily < 7d, keep weekly <30d, keep monthly <1y
 # nah, using Amazon S3 lifecycle policy instead; see README.md
