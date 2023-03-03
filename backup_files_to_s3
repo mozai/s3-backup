@@ -79,7 +79,7 @@ _verify_needs || die "pre-flight check failed";
 mkdir -p "$SNARDIR"
 snardate="$(_get_snapshot_date)"  # today or last sunday yyyy-mm-dd
 today=$(printf '%(%F)T')  # yyyy-mm-dd
-S3URL="s3://$S3BUCKET/$(hostname -s)/"
+S3URL="s3://$S3BUCKET/$(hostname -s)"
 for indir in "${TAR_INDIRS[@]}"; do
 	if [ "${indir:0:1}" != "/" ]; then
 		echo >&2 "WARN $indir ; skipping because not an absolute path."
