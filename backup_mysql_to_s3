@@ -43,7 +43,7 @@ _verify_needs(){
 #  object's name i.e. "anything named s3://bucket/backups_daily/* expire
 #  after 8 days"
 _build_s3_prefix() {
-	local myname path today wday mday
+	local path today wday mday
 	path=""	
 	today=$(printf '%(%F)T')
 	wday=$(( $(printf '%(%u)T') % 7 ))
@@ -74,7 +74,10 @@ fi
 
 for dbname in "${MYSQL_DATABASES[@]}"; do
 	whisper "Sending $dbname to $objprefix/$dbname.sql.gz"
-	mysqldump --skip-comments "$dbname" \
-		|gzip -ncf - \
+	if [[ -n "$DRYRUN" ]]; then
+		echo "mysqldump --skip-comments \"$dbname\" |gzip -ncf - |${UPLOADCMD[*]} - \"$objprefix/$dbname.sql.gz\""
+	else
+		mysqldump --skip-comments "$dbname" |gzip -ncf - \
 		|"${UPLOADCMD[@]}" - "$objprefix/$dbname.sql.gz"
+	fi
 done

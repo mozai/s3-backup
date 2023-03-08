@@ -108,7 +108,10 @@ for indir in "${TAR_INDIRS[@]}"; do
 	fi
 	whisper "Backing up to $s3path/$tarname.tgz... ";
 	# echo "/bin/tar -c -f - ${TAR_OPTS[*]} -g $snarfile -C / $indir |${UPLOADCMD[*]} - $s3path/$tarname.$today.tgz"
-	/bin/tar -c -f - "${TAR_OPTS[@]}" -g "$snarfile" -C / "$indir" \
+	if [[ -n "$DRYRUN" ]]; then
+		echo "/bin/tar -c -f - ${TAR_OPTS[*]} -g \"$snarfile\" -C / \"$indir\" |${UPLOADCMD[*]} - \"$s3path/$tarname.$today.tgz\""
+	else
+		/bin/tar -c -f - "${TAR_OPTS[@]}" -g "$snarfile" -C / "$indir" \
 		|"${UPLOADCMD[@]}" - "$s3path/$tarname.$today.tgz"
+	fi
 done
-

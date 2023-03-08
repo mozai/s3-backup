@@ -109,6 +109,12 @@ Throw this into /etc/cron.d/local
 12 6 * * *      root    /opt/s3-backup/backup_cronjob.sh
 ```
 
+DEBUG
+=====
+set envvar `DRYRUN=1` before launching; it won't upload but show you
+how it would upload instead.
+
+
 TODO
 ====
 * Easy tool to just point at a dir like /home/radio and upload just
@@ -116,10 +122,10 @@ TODO
   like /home/radio/sessionrecordings
 * ~~investigate using `aws s3api put-object` instead of `aws s3 cp`~~
   No, put-object limited to 5GB upload, and can't handle pipes/stdin besides.
-* add `--sse` for encryption at rest?
 * add `aws put-object-tagging --bucket BN --key FN --tagging
   '{"TagSet":[{"Key": "string","Value": "string"}, ...]}'
-  after a successful upload.
+  after a successful upload.  Maybe use tagging instead of prefixes
+  for the lifecycle policy?  But doesn't appear in AWS console. =/
 * Sense when the full backup is missing, even if there are (incorrect)
   snarfiles locally.
 * Is it worth doing level-2 incrementals with tar?
