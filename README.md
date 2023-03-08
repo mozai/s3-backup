@@ -20,35 +20,43 @@ Install aws-cli; version 2, don't use the Debian packages and
 don't just use pip to install boto3.
 
 In Amazon console, create an IAM policy and new IAM user.
-IAM policy should be named like 'HOSTONE\_write\_S3BUCKET'
-
+I usually name the policy "S3\_{S3BUCKET}\_write"
+The "seeBuckets" could be discarded, but this is designed
+to be easy for Amazon non-experts, and without it the AWS Console
+will hide buckets from your users.
 ```json
-    { "Statement": [
-      { "Action": "s3:ListBucket",
-        "Condition": {
-          "StringLike": { "s3:prefix": "HOSTONE/*" }
-        },
-        "Effect": "Allow",
-        "Resource": "arn:aws:s3:::S3BUCKET",
-        "Sid": "readHOSTONE"
-      },
-      { "Action": [
-          "s3:PutObject",
-          "s3:GetObject",
-          "s3:AbortMultipartUpload",
-          "s3:DeleteObjectVersion",
-          "s3:DeleteObject",
-          "s3:GetObjectVersion",
-          "s3:ListMultipartUploadParts"
-        ],
-        "Effect": "Allow",
-        "Resource": "arn:aws:s3:::S3BUCKET/HOSTONE/*",
-        "Sid": "writeHOSTONE"
-      }
-    ],
-    "Version": "2012-10-17"
+{ "Version": "2012-10-17",
+  "Statement": [
+    { "Sid": "seeBuckets",
+      "Action": "s3:ListAllMyBuckets",
+      "Effect": "Allow",
+      "Resource": "*"
+    },
+    { "Sid": "seeSepulchre",
+      "Action": "s3:ListBucket",
+      "Effect": "Allow",
+      "Resource": "arn:aws:s3:::{S3BUCKET}"
+    },
+    { "Sid": "writeToSepulchre",
+      "Action": [
+        "s3:AbortMultipartUpload",
+        "s3:DeleteObject",
+        "s3:DeleteObjectVersion",
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:ListMultipartUploadParts",
+        "s3:PutObject"
+      ],
+      "Effect": "Allow",
+      "Resource": "arn:aws:s3:::{S3BUCKET}/*"
     }
+  ]
+}
 ```
+
+For the end-user that needs read access to these backups, make
+another police (I'd name it "S3\_{S3BUCKET}\_read") like the above
+but without the "Abort" and "DeleteObject" and "PutObject" actions.
 
 ```
 mkdir /root/.aws ; chmod 700 /root/.aws ;
@@ -67,28 +75,16 @@ just want to change one of them.
 ```json
 { "Rules": [
     { "Expiration": { "Days": 8 },
-      "ID": "HOSTONE-daily",
-      "Filter": { "Prefix": "HOSTONE/backups_daily" },
+      "ID": "backups_daily",
+      "Filter": { "Prefix": "backups_daily/" },
       "Status": "Enabled" },
     { "Expiration": { "Days": 36 },
-      "ID": "HOSTONE-weekly",
-      "Filter": { "Prefix": "HOSTONE/backups_weekly" },
+      "ID": "backups_weekly",
+      "Filter": { "Prefix": "backups_weekly/" },
       "Status": "Enabled" },
     { "Expiration": { "Days": 730 },
-      "ID": "HOSTONE-monthly",
-      "Filter": { "Prefix": "HOSTONE/backups_monthly" },
-      "Status": "Enabled" },
-    { "Expiration": { "Days": 8 },
-      "ID": "HOSTTWO-daily",
-      "Filter": { "Prefix": "HOSTTWO/backups_daily" },
-      "Status": "Enabled" },
-    { "Expiration": { "Days": 36 },
-      "ID": "HOSTTWO-weekly",
-      "Filter": { "Prefix": "HOSTTWO/backups_weekly" },
-      "Status": "Enabled" },
-    { "Expiration": { "Days": 730 },
-      "ID": "HOSTTWO-monthly",
-      "Filter": { "Prefix": "HOSTTWO/backups_monthly" },
+      "ID": "backups_monthly",
+      "Filter": { "Prefix": "backups_monthly/" },
       "Status": "Enabled" }
   ]
 }
