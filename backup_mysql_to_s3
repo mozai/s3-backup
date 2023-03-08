@@ -44,7 +44,6 @@ _verify_needs(){
 #  after 8 days"
 _build_s3_prefix() {
 	local myname path today wday mday
-	myname=$(hostname -s)
 	path=""	
 	today=$(printf '%(%F)T')
 	wday=$(( $(printf '%(%u)T') % 7 ))
@@ -56,7 +55,8 @@ _build_s3_prefix() {
 	else
 		path="backups_daily/$today"
 	fi
-	echo "$myname/$path"
+	[[ -n "$S3PREFIX" ]] && path="$S3PREFIX/$path"
+	echo "$path"
 }
 
 

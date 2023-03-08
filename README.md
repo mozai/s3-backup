@@ -114,8 +114,12 @@ TODO
 * Easy tool to just point at a dir like /home/radio and upload just
   that one thing right now.  Needed for the huge and unchanging things
   like /home/radio/sessionrecordings
-* investigate using `aws s3api put-object` instead of `aws s3 cp`, so
-  we can use tagging for expiry instead of object-name prefixes
+* ~~investigate using `aws s3api put-object` instead of `aws s3 cp`~~
+  No, put-object limited to 5GB upload, and can't handle pipes/stdin besides.
+* add `--sse` for encryption at rest?
+* add `aws put-object-tagging --bucket BN --key FN --tagging
+  '{"TagSet":[{"Key": "string","Value": "string"}, ...]}'
+  after a successful upload.
 * Sense when the full backup is missing, even if there are (incorrect)
   snarfiles locally.
 * Is it worth doing level-2 incrementals with tar?
