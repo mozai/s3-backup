@@ -109,7 +109,8 @@ for indir in "${TAR_INDIRS[@]}"; do
 	whisper "Backing up to $s3path/$tarname.tgz... ";
 	# echo "/bin/tar -c -f - ${TAR_OPTS[*]} -g $snarfile -C / $indir |${UPLOADCMD[*]} - $s3path/$tarname.$today.tgz"
 	if [[ -n "$DRYRUN" ]]; then
-		echo "/bin/tar -c -f - ${TAR_OPTS[*]} -g \"$snarfile\" -C / \"$indir\" |${UPLOADCMD[*]} - \"$s3path/$tarname.$today.tgz\""
+		# the sed is a hack because one TAR_OPTS token has an embedded space
+		echo "/bin/tar -c -f - ${TAR_OPTS[*]} -g \"$snarfile\" -C / \"$indir\" |${UPLOADCMD[*]} - \"$s3path/$tarname.$today.tgz\"" |sed 's/gzip --no-name/"gzip --no-name"/'
 	else
 		/bin/tar -c -f - "${TAR_OPTS[@]}" -g "$snarfile" -C / "$indir" \
 		|"${UPLOADCMD[@]}" - "$s3path/$tarname.$today.tgz"
