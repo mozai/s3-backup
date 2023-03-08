@@ -10,9 +10,14 @@ die(){ echo >&2 "$1"; exit "${2:-1}"; }
 # config defaults
 AWS_OPTS=( "--cli-connect-timeout=10" )
 TAR_INDIRS=( /etc /root /home/* )
-TAR_OPTS=( "--exclude-tag=.dont_backup" "--exclude-tag=.skip_backup"
+TAR_OPTS=(
 	"--exclude=.cache" "--exclude=.cachedir" "--exclude=tmp"
-	"--exclude=\*.bak" "--exclude=\*~" )
+	"--exclude=\*.bak" "--exclude=\*~"
+	"--exclude=.ssh" "--exclude=.aws" "--exclude=.*_history"
+)
+TAR_OPTS+=(
+	"--exclude-tag=.dont_backup" "--exclude-tag=.skip_backup"
+)
 # load config
 workdir="$(dirname "$(readlink -f -- "$0")")"
 for f in "$HOME/.config/s3-backup.cfg" "$HOME/.s3-backup.cfg" "./s3-backup.cfg" "$workdir/s3-backup.cfg" ; do
