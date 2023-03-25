@@ -3,7 +3,7 @@
 
 # -- init --
 umask 077
-whisper(){ [ -t 0 ] && echo "$*"; }  # be quiet in cronjobs
+whisper(){ [[ -t 0 ]] && echo "$*"; }  # be quiet in cronjobs
 die(){ echo >&2 "$1"; exit "${2:-1}"; }
 # config defaults
 AWS_OPTS=("--cli-connect-timeout=10")
@@ -18,7 +18,7 @@ done
 _verify_needs(){
 	local awsver retval
 	retval=0
-	if [ -z "$S3BUCKET" ]; then
+	if [[ -z "$S3BUCKET" ]]; then
 		echo >&2 "EROR S3BUCKET not set"
 		retval=1
 	fi
@@ -31,7 +31,7 @@ _verify_needs(){
 	[[ $retval == 0 ]] || return $retval
 	awsver=$(aws --version)  # aws-cli/2.9.3 Python/3.9.11 Linux/5.15.91-1
 	awsver=${awsver%% *} ; awsver=${awsver#*/} ;
-	if [ "$( echo -e "$awsver\n1.10" |sort -rV |head -1 )" != "$awsver" ]; then
+	if [[ "$( echo -e "$awsver\n1.10" |sort -rV |head -1 )" != "$awsver" ]]; then
 		echo >&2 "EROR need aws --version >=1.10; saw $awsver"
 		retval=1
 	fi
@@ -64,10 +64,10 @@ _build_s3_prefix() {
 _verify_needs || die "pre-flight check failed"
 objprefix="s3://${S3BUCKET}/$(_build_s3_prefix)"
 AWS_OPTS+=("--output=text" "--color=off")
-[ -t 0 ] || AWS_OPTS+=("--quiet")
+[[ -t 0 ]] || AWS_OPTS+=("--quiet")
 UPLOADCMD=("aws" "${AWS_OPTS[@]}" "s3" "cp")
 
-if [ -z "${MYSQL_DATABASES[*]}" ]; then
+if [[ -z "${MYSQL_DATABASES[*]}" ]]; then
 	mapfile -t MYSQL_DATABASES < <(mysql -BN -e 'show databases;' \
 	  |grep -vE '^(information_schema|mysql|performance_schema|sys)$')
 fi

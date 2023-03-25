@@ -22,14 +22,14 @@ TAR_OPTS+=(
 workdir="$(dirname "$(readlink -f -- "$0")")"
 for f in "$HOME/.config/s3-backup.cfg" "$HOME/.s3-backup.cfg" "./s3-backup.cfg" "$workdir/s3-backup.cfg" ; do
 	# shellcheck disable=SC1090
-	[ -e "$f" ] && source "$f" && break;
+	[[ -e "$f" ]] && source "$f" && break;
 done
 
 # verify we have the programs we need
 _verify_needs(){
 	local awsver retval
 	retval=0
-	if [ -z "$S3BUCKET" ]; then
+	if [[ -z "$S3BUCKET" ]]; then
 		echo >&2 "EROR variable S3BUCKET is empty; aborting."
 		retval=1
 	fi
@@ -58,7 +58,7 @@ _get_snapshot_date() {
 
 declare -a UPLOADCMD
 AWS_OPTS=("--output=text" "--color=off" )
-[ -t 0 ] || AWS_OPTS+=("--quiet")
+[[ -t 0 ]] || AWS_OPTS+=("--quiet")
 UPLOADCMD=("aws" "${AWS_OPTS[@]}" "s3" "cp")
 
 # non-optional options; don't tempt the user to change these in config
@@ -76,18 +76,18 @@ TAR_OPTS+=(
 	"-I" "gzip --no-name"
 	# -g or --listed-incremental is set later
 )
-[ -t 0 ] && TAR_OPTS+=("--totals")
+[[ -t 0 ]] && TAR_OPTS+=("--totals")
 
 # -- main --
 _verify_needs || die "pre-flight check failed";
-[ -z "$SNARDIR" ] && SNARDIR="$HOME/.cache/s3-backup"
+[[ -z "$SNARDIR" ]] && SNARDIR="$HOME/.cache/s3-backup"
 mkdir -p "$SNARDIR"
 snardate="$(_get_snapshot_date)"  # today or last sunday yyyy-mm-dd
 today=$(printf '%(%F)T')  # yyyy-mm-dd
 S3URL="s3://$S3BUCKET"
 [[ -n "$S3PREFIX" ]] && S3URL="$S3URL/$S3PREFIX"
 for indir in "${TAR_INDIRS[@]}"; do
-	if [ "${indir:0:1}" != "/" ]; then
+	if [[ "${indir:0:1}" != "/" ]]; then
 		echo >&2 "WARN $indir ; skipping because not an absolute path."
 		continue
 	fi
