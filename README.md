@@ -11,6 +11,11 @@ before the backup, and other config that isn't obvious from reading
 **TODO:** need more documentation for each of the wrinkles I've had to add
 over time.
 
+**TODO:** maybe ignore/skip more directories by default, like '.ssh'
+and '.aws' and '.git'.  THe first two for security, the second for
+sheer bloat.
+
+
 Set-up
 ======
 Have an S3 bucket in Amazon, duh.  Has to be globally unique among

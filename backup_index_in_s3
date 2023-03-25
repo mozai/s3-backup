@@ -1,0 +1,107 @@
+#!/bin/bash
+# this is for making the index.html in S3
+#   when you want to have your non-techies have access
+# I know it'd be faster to make it at upload time but
+#   there's multiple programs doing the uploads
+#   and having a local statefile is how I get so annoyed with Terraform
+# TODO: exec time is 19s for each index.html because I'm using bash
+#   out of stubbornness.
+
+# -- init --
+umask 077
+whisper(){ [[ -t 0 ]] && echo "$*"; }  # be quiet in cronjobs
+die(){ echo >&2 "$1"; exit "${2:-1}"; }
+
+HTML_HEADER='
+<!doctype html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+<meta name=viewport content="width=device-width, initial-scale=1">
+<title>Backups</title>
+<style type="text/css">body{margin:2.5em auto;max-width:40em;line-height:1.5;font-size:18px;color:#444;padding:0 0.5em}h1,h2,h3{line-height:1.2}</style>
+<style type="text/css">th:nth-of-type(2){width:7em;}td:nth-of-type(2){text-align:right;}th:nth-of-type(3){width:10em;}td:nth-of-type(3){text-align:right;}</style>
+</head>
+'
+
+# -- main --
+
+mk_top_index(){
+	local prefix1=$1
+	prefix1="${prefix1%/}"
+	echo "<table><thead><tr><th>Name</th><th width>Size</th><th>Date</th></tr></thead>"
+	echo "<tbody>"
+	for prefix2 in backups_monthly backups_weekly backups_daily; do
+		prefix2="${prefix2%/}"
+		mapfile -t items < <(aws s3 ls "$prefix1/$prefix2/")
+		for i in "${items[@]}"; do
+			if [[ $i =~ index\.html ]]; then
+				continue
+			elif [[ $i =~ " PRE " ]]; then
+				read -r _ name <<<"$i"
+				name=${name%/}
+				name="$prefix2/$name"
+				echo "<tr><td><a href=\"$name/index.html\">$name</a></td><td>&nbsp</td><td>&nbsp;</td></tr>"
+			else
+				read -r date1 _ size name <<<"$i"
+				name="$prefix2/$name"
+				echo "<tr><td><a href=\"$name\">$name</a></td><td>$size</td><td>$date1</td></tr>"
+			fi
+		done
+	done
+	echo "</tbody></table>"
+}
+
+mk_leaf_index(){
+	local prefix=$1
+	prefix="${prefix%/}"
+	echo "<table><thead><tr><th>Name</th><th>Size</th><th>Date</th></tr></thead>"
+	echo "<tbody>"
+	mapfile -t items < <(aws s3 ls "$prefix/")
+	for i in "${items[@]}"; do
+		if [[ $i =~ index\.html ]]; then
+			continue
+		elif [[ $i =~ " PRE " ]]; then
+			read -r _ name <<<"$i"
+			echo "<tr><td><a href=\"$name\">$name</a></td><td>&nbsp</td><td>&nbsp;</td></tr>"
+		else
+			read -r date1 _ size name <<<"$i"
+			echo "<tr><td><a href=\"$name\">$name</a></td><td>$size</td><td>$date1</td></tr>"
+		fi
+	done
+	echo "</tbody></table>"
+}
+
+if ! command -v "aws" >/dev/null; then
+	die "EROR: need aws program; aborting."
+fi
+[[ -z "$1" ]] && \
+	die "I need an S3 prefix for the index.html file to generate"
+S3PREFIX="${1%/}"
+
+
+TMPFILE=$(mktemp)
+# shellcheck disable=SC2064
+trap "rm $TMPFILE" EXIT
+
+zhu_li(){
+	echo "$HTML_HEADER"
+	echo "<body>"
+	echo "<header><h2>$S3PREFIX</h2></header>"
+	# known bug: aws-to-grep throws a BrokenPipe exception
+	# ref. https://github.com/aws/aws-cli/issues/5899
+	if aws s3 ls "$S3PREFIX/" 2>/dev/null |grep -q 'PRE backups_'; then
+		mk_top_index "$S3PREFIX"
+	else
+		mk_leaf_index "$S3PREFIX"
+	fi
+	echo "</body>"
+}
+if [[ -n "$DEBUG" ]]; then
+	cat "$TMPFILE"
+	echo "debug mode; did not upload"
+else
+	zhu_li >"$TMPFILE" && \
+	aws s3 cp --content-type text/html "$TMPFILE" "$S3PREFIX/index.html"
+	echo "hopefully uploaded $S3PREFIX/index.html"
+fi
+
