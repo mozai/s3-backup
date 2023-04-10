@@ -48,7 +48,7 @@ _build_s3_prefix() {
 	today=$(printf '%(%F)T')
 	wday=$(( $(printf '%(%u)T') % 7 ))
 	mday=$(printf '%(%d)T')
-	if [[ "$wday" -eq 0 ]] && [[ "$mday" -lt 8 ]]; then
+	if [[ "${wday#0}" -eq 0 ]] && [[ "${mday#0}" -lt 8 ]]; then
 		path="backups_monthly/$today"
 	elif [[ "$wday" == "0" ]]; then
 		path="backups_weekly/$today"
