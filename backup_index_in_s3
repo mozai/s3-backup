@@ -101,7 +101,7 @@ if [[ -n "$DEBUG" ]]; then
 	echo "debug mode; did not upload"
 else
 	zhu_li >"$TMPFILE" && \
-	aws s3 cp --content-type text/html "$TMPFILE" "$S3PREFIX/index.html"
-	echo "hopefully uploaded $S3PREFIX/index.html"
+	aws s3 cp --quiet --content-type text/html "$TMPFILE" "$S3PREFIX/index.html"
+	whisper "hopefully uploaded $S3PREFIX/index.html"
 fi
 
