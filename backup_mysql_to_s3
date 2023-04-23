@@ -5,14 +5,18 @@
 umask 077
 whisper(){ [[ -t 0 ]] && echo "$*"; }  # be quiet in cronjobs
 die(){ echo >&2 "$1"; exit "${2:-1}"; }
+
 # config defaults
 AWS_OPTS=("--cli-connect-timeout=10")
 # load config
-workdir=$(dirname "$(readlink -f -- "$0")")
-for f in "$HOME/.config/s3-backup.cfg" "$HOME/.s3-backup.cfg" "./s3-backup.cfg" "$workdir/s3-backup.cfg" ; do
+cd "$(dirname "$(readlink -f -- "$0")")" || exit 1;
+for f in "$HOME/.config/s3-backup.cfg" "$HOME/.s3-backup.cfg" "./s3-backup.cfg"; do
 	# shellcheck disable=SC1090
 	[ -e "$f" ] && source "$f" && break;
 done
+if [[ -z "$S3BUCKET" ]]; then
+	echo >&2 "no cfg file found"; exit 1;
+fi
 
 # verify we have the programs we need
 _verify_needs(){
