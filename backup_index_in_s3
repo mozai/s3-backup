@@ -82,7 +82,7 @@ spew_top_index(){
 				read -r _ name <<<"$i"
 				name=${name%/}
 				name="$prefix2/$name"
-				echo "<tr><td><a href=\"$name/index.html\">$name</a></td><td>&nbsp</td><td>&nbsp;</td></tr>"
+				echo "<tr><td><a href=\"$name/index.html\">$name</a></td><td>&nbsp;</td><td>&nbsp;</td></tr>"
 			else
 				read -r date1 _ size name <<<"$i"
 				name="$prefix2/$name"
@@ -110,7 +110,7 @@ spew_leaf_index(){
 			continue
 		elif [[ $i =~ " PRE " ]]; then
 			read -r _ name <<<"$i"
-			echo "<tr><td><a href=\"$name\">$name</a></td><td>&nbsp</td><td>&nbsp;</td></tr>"
+			echo "<tr><td><a href=\"$name\">$name</a></td><td>&nbsp;</td><td>&nbsp;</td></tr>"
 		else
 			read -r date1 _ size name <<<"$i"
 			echo "<tr><td><a href=\"$name\">$name</a></td><td>$size</td><td>$date1</td></tr>"
