@@ -66,7 +66,6 @@ get_todays_s3url(){
 spew_top_index(){
 	local prefix1=$1 prefix2 i items
 	prefix1="${prefix1%/}"
-	whisper "(building $prefix/index.html)"
 	echo "$HTML_START"
 	echo "<body>"
 	echo "<header><h2>$prefix</h2>$HTML_HEADER</header>"
@@ -99,7 +98,6 @@ spew_top_index(){
 spew_leaf_index(){
 	local prefix=$1 items i
 	prefix="${prefix%/}"
-	whisper "(building $prefix/index.html)"
 	echo "$HTML_START"
 	echo "<body>"
 	echo "<header><h2>$prefix</h2>$HTML_HEADER</header>"
@@ -149,9 +147,11 @@ trap "rm $TMPFILE" EXIT
 if [[ "$#" -eq 0 ]]; then
 	# assume it's just for today and rebuild the top
 	s3url=$(get_todays_s3url)
+	whisper "(building $s3url/index.html)"
 	spew_leaf_index "$s3url" >"$TMPFILE" && \
 	aws s3 cp --content-type text/html "$TMPFILE" "${s3url}/index.html"
 	s3url=$(get_top_s3url)
+	whisper "(building $s3url/index.html)"
 	spew_top_index "$s3url" >"$TMPFILE" && \
 	aws s3 cp --content-type text/html "$TMPFILE" "${s3url}/index.html"
 else
@@ -162,9 +162,11 @@ else
 			continue
 		fi
 		if [[ "$s3url" == "$topurl" ]]; then
+			whisper "(building $s3url/index.html)"
 			spew_top_index "$s3url" >"$TMPFILE" && \
 			aws s3 cp --content-type text/html "$TMPFILE" "${s3url}/index.html"
 		else
+			whisper "(building $s3url/index.html)"
 			spew_leaf_index "$s3url" >"$TMPFILE" && \
 			aws s3 cp --content-type text/html "$TMPFILE" "${s3url}/index.html"
 		fi
