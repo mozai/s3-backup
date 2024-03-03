@@ -23,5 +23,5 @@ done
 
 if [[ -n "$CLOUDFRONT_URL" ]]; then
 	# update the simple loading dock pages
-	./backup_index_to_s3
+	./backup_index_in_s3
 fi
