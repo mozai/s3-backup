@@ -7,28 +7,70 @@
 # TODO: exec time is 19s for each index.html because I'm using bash
 #   out of stubbornness.
 
-# -- init --
-umask 077
-whisper(){ [[ -t 0 ]] && echo "$*"; }  # be quiet in cronjobs
-die(){ echo >&2 "$1"; exit "${2:-1}"; }
+# -- config --
+# config settings S3BUCKET and S3PREFIX are stored in
+# a config file that is NOT in the git repo obviously.
+# Looks in ~/.config/s3-backup.cfg or ~/.s3-backup.cfg or ./s3-backup.cfg
 
-HTML_HEADER='
+HTML_START='
 <!doctype html>
 <head>
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
 <meta name=viewport content="width=device-width, initial-scale=1">
 <title>Backups</title>
 <style type="text/css">body{margin:2.5em auto;max-width:40em;line-height:1.5;font-size:18px;color:#444;padding:0 0.5em}h1,h2,h3{line-height:1.2}</style>
-<style type="text/css">th:nth-of-type(2){width:7em;}td:nth-of-type(2){text-align:right;}th:nth-of-type(3){width:10em;}td:nth-of-type(3){text-align:right;}</style>
+<style type="text/css">th:nth-of-type(2){width:7em;}td:nth-of-type(2){text-align:right;}th:nth-of-type(3){width:10em;}td:nth-of-type(3){text-align:right;}#footer{font-style:italic;}</style>
 </head>
 '
 
-# -- main --
+# visible text at the start of each page after the title
+HTML_HEADER="
+"
+HTML_FOOTER="
+<hr/>
+<div id=footer>Last updated: $(date -I)</div>
+"
 
-mk_top_index(){
-	local prefix1=$1
+
+# --- init ---
+whisper(){ [[ -t 0 ]] && echo "$*"; }  # be quiet in cronjobs
+die(){ echo >&2 "$1"; exit "${2:-1}"; }
+
+get_top_s3url(){
+	if [[ -n "$S3PREFIX" ]]; then 
+		echo "s3://${S3BUCKET}/${S3PREFIX%/}"
+	else
+		echo "s3://${S3BUCKET}"
+	fi
+}
+	
+# where do I put the index.html object?  if the user didn't say
+get_todays_s3url(){
+	local wday mday today snardate s3path
+	# weekday (0 == Sun), monthday, today
+	wday=$(( $(printf '%(%u)T') % 7 ))
+	mday=$(printf '%(%d)T')
+	today=$(printf '%(%F)T')  # yyyy-mm-dd
+	# snapshot day is last sunday unless today is sunday
+	snardate=$(printf '%(%F)T' $(( $(printf '%(%s)T') - ( wday * 86400 ) )) )
+	s3path="backups_daily/$today"
+	if [[ "$snardate" == "$today" ]]; then
+		s3path="backups_weekly/$today"
+		mday=${mday#0}  # because 08 and 09 are errors in the next line
+		[[ $mday -lt 8 ]] && s3path="backups_monthly/$today"
+	fi
+	echo "$(get_top_s3url)/$s3path"
+}
+
+# output index file for the top of the tree
+spew_top_index(){
+	local prefix1=$1 prefix2 i items
 	prefix1="${prefix1%/}"
-	echo "<table><thead><tr><th>Name</th><th width>Size</th><th>Date</th></tr></thead>"
+	whisper "(building $prefix/index.html)"
+	echo "$HTML_START"
+	echo "<body>"
+	echo "<header><h2>$prefix</h2>$HTML_HEADER</header>"
+	echo "<table><thead><tr><th>Name</th><th>Size</th><th>Date</th></tr></thead>"
 	echo "<tbody>"
 	for prefix2 in backups_monthly backups_weekly backups_daily; do
 		prefix2="${prefix2%/}"
@@ -49,11 +91,18 @@ mk_top_index(){
 		done
 	done
 	echo "</tbody></table>"
+	echo "$HTML_FOOTER"
+	echo "</body>"
 }
 
-mk_leaf_index(){
-	local prefix=$1
+# output index file for one backup
+spew_leaf_index(){
+	local prefix=$1 items i
 	prefix="${prefix%/}"
+	whisper "(building $prefix/index.html)"
+	echo "$HTML_START"
+	echo "<body>"
+	echo "<header><h2>$prefix</h2>$HTML_HEADER</header>"
 	echo "<table><thead><tr><th>Name</th><th>Size</th><th>Date</th></tr></thead>"
 	echo "<tbody>"
 	mapfile -t items < <(aws s3 ls "$prefix/")
@@ -69,39 +118,56 @@ mk_leaf_index(){
 		fi
 	done
 	echo "</tbody></table>"
+	echo "$HTML_FOOTER"
+	echo "</body>"
 }
 
+
+# --- main() ---
+umask 077
+
+# check requirements
 if ! command -v "aws" >/dev/null; then
 	die "EROR: need aws program; aborting."
 fi
-[[ -z "$1" ]] && \
-	die "I need an S3 prefix for the index.html file to generate"
-S3PREFIX="${1%/}"
 
+# load config to get S3BUCKET and S3PREFIX
+declare S3BUCKET S3PREFIX
+workdir="$(dirname "$(readlink -f -- "$0")")"
+for f in "$HOME/.config/s3-backup.cfg" "$HOME/.s3-backup.cfg" "./s3-backup.cfg" "$workdir/s3-backup.cfg" ; do
+	# shellcheck disable=SC1090
+	[[ -e "$f" ]] && source "$f" && break;
+done
+if [[ -z "$S3BUCKET" ]]; then
+	die "no S3BUCKET; is the config file missing?"
+fi
 
 TMPFILE=$(mktemp)
 # shellcheck disable=SC2064
 trap "rm $TMPFILE" EXIT
 
-zhu_li(){
-	echo "$HTML_HEADER"
-	echo "<body>"
-	echo "<header><h2>$S3PREFIX</h2></header>"
-	# known bug: aws-to-grep throws a BrokenPipe exception
-	# ref. https://github.com/aws/aws-cli/issues/5899
-	if aws s3 ls "$S3PREFIX/" 2>/dev/null |grep -q 'PRE backups_'; then
-		mk_top_index "$S3PREFIX"
-	else
-		mk_leaf_index "$S3PREFIX"
-	fi
-	echo "</body>"
-}
-if [[ -n "$DEBUG" ]]; then
-	cat "$TMPFILE"
-	echo "debug mode; did not upload"
+if [[ "$#" -eq 0 ]]; then
+	# assume it's just for today and rebuild the top
+	s3url=$(get_todays_s3url)
+	spew_leaf_index "$s3url" >"$TMPFILE" && \
+	aws s3 cp --content-type text/html "$TMPFILE" "${s3url}/index.html"
+	s3url=$(get_top_s3url)
+	spew_top_index "$s3url" >"$TMPFILE" && \
+	aws s3 cp --content-type text/html "$TMPFILE" "${s3url}/index.html"
 else
-	zhu_li >"$TMPFILE" && \
-	aws s3 cp --quiet --content-type text/html "$TMPFILE" "$S3PREFIX/index.html"
-	whisper "hopefully uploaded $S3PREFIX/index.html"
+	topurl=$(get_top_s3url)
+	for s3url in "$@"; do
+		if [[ ! $s3url =~ ^s3:// ]]; then
+			echo >&2 "$s3url is not an s3:// url; skipping"
+			continue
+		fi
+		if [[ "$s3url" == "$topurl" ]]; then
+			spew_top_index "$s3url" >"$TMPFILE" && \
+			aws s3 cp --content-type text/html "$TMPFILE" "${s3url}/index.html"
+		else
+			spew_leaf_index "$s3url" >"$TMPFILE" && \
+			aws s3 cp --content-type text/html "$TMPFILE" "${s3url}/index.html"
+		fi
+	done
 fi
 
