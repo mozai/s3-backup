@@ -21,16 +21,7 @@ done
 ./backup_files_to_s3
 ./backup_mysql_to_s3
 
-# TODO: this is awkward as heck
-update_top=""
-today=$(date -I)
-for j in backups_daily backups_weekly backups_monthly; do
-	if aws s3 ls "$S3BUCKET/$S3PATH/$j/$today" >/dev/null; then
-		./backup_index_in_s3 "$S3BUCKET/$S3PATH/backups_daily/$today"
-		update_top=t
-		break
-	fi
-done
-if [[ -n "$update_top" ]]; then
-	./backup_index_in_s3 "$S3BUCKET/$S3PATH/"
+if [[ -n "$CLOUDFRONT_URL" ]]; then
+	# update the simple loading dock pages
+	./backup_index_to_s3
 fi

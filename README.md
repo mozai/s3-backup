@@ -1,5 +1,5 @@
 What
-====
+----
 Offsite backups to Amazon S3.  I want it to be super-easy to restore,
 even for someone who only uses windows, so no complicated software they
 have to install first.
@@ -8,16 +8,8 @@ Good idea to `dpkg -l | grep '^.i' >/root/installed-packages.txt;` just
 before the backup, and other config that isn't obvious from reading
 `/etc/*`.
 
-**TODO:** need more documentation for each of the wrinkles I've had to add
-over time.
-
-**TODO:** maybe ignore/skip more directories by default, like '.ssh'
-and '.aws' and '.git'.  THe first two for security, the second for
-sheer bloat.
-
-
 Set-up
-======
+------
 Have an S3 bucket in Amazon, duh.  Has to be globally unique among
 all Amazon customers, so don't worry about it being inelegant.
 
@@ -101,9 +93,14 @@ Then
 Copy s3-backup.example.cfg to s3-backup.cfg and edit it to match
 your personal settings.
 
+Easy pick-up via Cloudfront
+---------------------------
+**TODO** explain what I did, how I made it safe.  Leave 
+CLOUDFRONT\_URL empty in the config file until I write
+out how to use it properly.
 
 Automation
-==========
+----------
 Throw this into /etc/cron.d/local
 ```
 # offsite backups
@@ -111,13 +108,12 @@ Throw this into /etc/cron.d/local
 ```
 
 DEBUG
-=====
+-----
 set envvar `DRYRUN=1` before launching; it won't upload but show you
-how it would upload instead.
-
+how it would upload instead. [**TODO** this needs better instructions]
 
 TODO
-====
+----
 * Easy tool to just point at a dir like /home/radio and upload just
   that one thing right now.  Needed for the huge and unchanging things
   like /home/radio/sessionrecordings
@@ -129,5 +125,10 @@ TODO
   for the lifecycle policy?  But doesn't appear in AWS console. =/
 * Sense when the full backup is missing, even if there are (incorrect)
   snarfiles locally.
+* Cloudfront documentation
 * Is it worth doing level-2 incrementals with tar?
 * incremental backups of mysql databases, how if possible?
+* need more documentation for each of the wrinkles I've had to add
+  over time.
+* maybe ignore/skip more directories by default, like '.ssh' and '.aws'
+  and '.git'.  THe first two for security, the second for sheer bloat.
