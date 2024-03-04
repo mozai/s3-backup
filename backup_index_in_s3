@@ -152,11 +152,11 @@ if [[ "$#" -eq 0 ]]; then
 	s3url=$(get_todays_s3url)
 	whisper "(building $s3url/index.html)"
 	spew_leaf_index "$s3url" >"$TMPFILE" && \
-	aws s3 cp --content-type text/html "$TMPFILE" "${s3url}/index.html"
+	aws s3 cp --quiet --content-type text/html "$TMPFILE" "${s3url}/index.html"
 	s3url=$(get_top_s3url)
 	whisper "(building $s3url/index.html)"
 	spew_top_index "$s3url" >"$TMPFILE" && \
-	aws s3 cp --content-type text/html "$TMPFILE" "${s3url}/index.html"
+	aws s3 cp --quiet --content-type text/html "$TMPFILE" "${s3url}/index.html"
 else
 	topurl=$(get_top_s3url)
 	for s3url in "$@"; do
@@ -167,11 +167,11 @@ else
 		if [[ "$s3url" == "$topurl" ]]; then
 			whisper "(building $s3url/index.html)"
 			spew_top_index "$s3url" >"$TMPFILE" && \
-			aws s3 cp --content-type text/html "$TMPFILE" "${s3url}/index.html"
+			aws s3 cp --quiet --content-type text/html "$TMPFILE" "${s3url}/index.html"
 		else
 			whisper "(building $s3url/index.html)"
 			spew_leaf_index "$s3url" >"$TMPFILE" && \
-			aws s3 cp --content-type text/html "$TMPFILE" "${s3url}/index.html"
+			aws s3 cp --quiet --content-type text/html "$TMPFILE" "${s3url}/index.html"
 		fi
 	done
 fi
