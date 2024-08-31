@@ -6,6 +6,12 @@ umask 077
 whisper(){ [[ -t 0 ]] && echo "$*"; }  # be quiet in cronjobs
 die(){ echo >&2 "$1"; exit "${2:-1}"; }
 
+# is mysql even here?
+if ! systemctl is-active --quiet mysql; then
+	whisper "mysqld is not running; aborting"
+	exit 0;
+fi
+
 # config defaults
 AWS_OPTS=("--cli-connect-timeout=10")
 # load config
